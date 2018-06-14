@@ -86,6 +86,9 @@ struct iLocMaterialInfo
 	GLuint specular;
 }iLocMaterialInfo;
 
+float lightPosition[4];
+GLuint iLoclightPosition;
+
 char** loadShaderSource(const char* file)
 {
     FILE* fp = fopen(file, "rb");
@@ -425,6 +428,7 @@ void My_Init()
 	iLocMaterialInfo.ambient = glGetUniformLocation(program, "material.ambient");
 	iLocMaterialInfo.diffuse = glGetUniformLocation(program, "material.diffuse");
 	iLocMaterialInfo.specular = glGetUniformLocation(program, "material.specular");
+	iLoclightPosition = glGetUniformLocation(program, "lightPosition");
 
 	glUseProgram(program);
 
@@ -448,10 +452,10 @@ void My_Init()
 
 	glUseProgram(skybox_prog);
 
-	//fName[0] = "Castle/Castle_OBJ.obj";
-	//Dir[0] = "Castle/";
-	fName[0] = "City/The_City.obj";
-	Dir[0] = "City/";
+	fName[0] = "Castle/Castle_OBJ.obj";
+	Dir[0] = "Castle/";
+	//fName[0] = "City/The_City.obj";
+	//Dir[0] = "City/";
 
 	cam.center = vec3(0.0f, 0.0f, 0.0f);
 	cam.eye = vec3(0.0f, 0.0f, 9.0f);
@@ -459,6 +463,7 @@ void My_Init()
 	cam.yaw = 0.0f;
 	cam.pitch = 0.0f;
 	terrain_model = mat4();
+	set_float4(lightPosition, 1.0f, 1.0f, 1.0f, 0.0f);
 
 	for (int i = 0; i < NUM_OF_OBJ; i++) {
 		MyLoadObject(i);
@@ -487,6 +492,8 @@ void My_Display()
 
 	glUseProgram(program);
 
+	glUniform4fv(iLoclightPosition, 1, lightPosition);
+
 	glBindVertexArray(ter_shape.vao);
 	glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * terrain_model));
 	glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
@@ -502,7 +509,8 @@ void My_Display()
 		glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum]));
 		glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
 		glActiveTexture(GL_TEXTURE0);
-		glUniform1i(state, 1);
+		if(ObjectNum == 0) glUniform1i(state, 1);
+		else glUniform1i(state, 2);
 		for (unsigned int i = 0; i < NumOfParts[ObjectNum]; i++)
 		{
 			glBindVertexArray(shape[ObjectNum][i].vao);
