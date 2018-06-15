@@ -1,15 +1,16 @@
-#version 420 core
+#version 410 core
 
-layout (binding = 0) uniform sampler2D diffuse_tex;
-layout (binding = 1) uniform sampler2D ambient_tex;
-layout (binding = 2) uniform sampler2D specular_tex;
+uniform sampler2D ambient_tex;
+uniform sampler2D diffuse_tex;
+uniform sampler2D specular_tex;
+uniform sampler2D terrain_tex_uniform;
 
 out vec4 fragColor;
 
 uniform mat4 um4mv;
 uniform mat4 um4p;
 uniform int state;
-layout (binding = 3) uniform sampler2D terrain_tex_uniform;
+
 
 in VS_OUT
 {

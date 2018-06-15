@@ -140,7 +140,6 @@ texture_data load_png(const char* path)
     return texture;
 }
 
-
 void getCurrentDir()
 {
 	char buf[2000];

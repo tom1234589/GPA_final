@@ -1,4 +1,4 @@
-#version 420 core
+#version 410 core
 
 layout(location = 0) in vec3 iv3vertex;
 layout(location = 1) in vec2 iv2tex_coord;

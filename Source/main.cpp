@@ -3,7 +3,7 @@
 #define MENU_TIMER_START 1
 #define MENU_TIMER_STOP 2
 #define MENU_EXIT 3
-#define NUM_OF_OBJ 1
+#define NUM_OF_OBJ 2
 
 #ifndef max
 # define max(a,b) (((a)>(b))?(a):(b))
@@ -77,7 +77,7 @@ struct Material
 	float ks[4];
 };
 
-Material *myMaterial;
+Material *myMaterial[NUM_OF_OBJ];
 
 struct iLocMaterialInfo
 {
@@ -88,6 +88,9 @@ struct iLocMaterialInfo
 
 float lightPosition[4];
 GLuint iLoclightPosition;
+GLuint ambient_tex;
+GLuint diffuse_tex;
+GLuint specular_tex;
 
 char** loadShaderSource(const char* file)
 {
@@ -206,7 +209,7 @@ void MyLoadObject(int ObjectNum)
 		shape[ObjectNum][i].drawCount = 3 * mesh->mNumFaces;
 	}
 
-	myMaterial = new Material[scene->mNumMaterials];
+	myMaterial[ObjectNum] = new Material[scene->mNumMaterials];
 
 	for (unsigned int i = 0; i < scene->mNumMaterials; ++i)
 	{
@@ -221,8 +224,8 @@ void MyLoadObject(int ObjectNum)
 			printf("Texture Path: %s\n", s.c_str());
 			texture_data tdata = load_png(s.c_str());
 
-			glGenTextures(1, &myMaterial[i].ambient_tex);
-			glBindTexture(GL_TEXTURE_2D, myMaterial[i].ambient_tex);
+			glGenTextures(1, &myMaterial[ObjectNum][i].ambient_tex);
+			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][i].ambient_tex);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, tdata.width, tdata.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tdata.data);
 			glGenerateMipmap(GL_TEXTURE_2D);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -239,8 +242,8 @@ void MyLoadObject(int ObjectNum)
 			printf("Texture Path: %s\n", s.c_str());
 			texture_data tdata = load_png(s.c_str());
 			
-			glGenTextures(1, &myMaterial[i].diffuse_tex);
-			glBindTexture(GL_TEXTURE_2D, myMaterial[i].diffuse_tex);
+			glGenTextures(1, &myMaterial[ObjectNum][i].diffuse_tex);
+			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][i].diffuse_tex);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, tdata.width, tdata.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tdata.data);
 			glGenerateMipmap(GL_TEXTURE_2D);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -257,8 +260,8 @@ void MyLoadObject(int ObjectNum)
 			printf("Texture Path: %s\n", s.c_str());
 			texture_data tdata = load_png(s.c_str());
 
-			glGenTextures(1, &myMaterial[i].specular_tex);
-			glBindTexture(GL_TEXTURE_2D, myMaterial[i].specular_tex);
+			glGenTextures(1, &myMaterial[ObjectNum][i].specular_tex);
+			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][i].specular_tex);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, tdata.width, tdata.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tdata.data);
 			glGenerateMipmap(GL_TEXTURE_2D);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -276,19 +279,19 @@ void MyLoadObject(int ObjectNum)
 		if (AI_SUCCESS == aiGetMaterialColor(material, AI_MATKEY_COLOR_AMBIENT, &ambient)) {
 			color4_to_float4(&ambient, c);
 		}
-		set_float4(myMaterial[i].ka, c[0], c[1], c[2], c[3]);
+		set_float4(myMaterial[ObjectNum][i].ka, c[0], c[1], c[2], c[3]);
 
 		set_float4(c, 0.8f, 0.8f, 0.8f, 1.0f);
 		if (AI_SUCCESS == aiGetMaterialColor(material, AI_MATKEY_COLOR_DIFFUSE, &diffuse)) {
 			color4_to_float4(&diffuse, c);
 		}
-		set_float4(myMaterial[i].kd, c[0], c[1], c[2], c[3]);
+		set_float4(myMaterial[ObjectNum][i].kd, c[0], c[1], c[2], c[3]);
 
 		set_float4(c, 0.0f, 0.0f, 0.0f, 1.0f);
 		if (AI_SUCCESS == aiGetMaterialColor(material, AI_MATKEY_COLOR_SPECULAR, &specular)) {
 			color4_to_float4(&specular, c);
 		}
-		set_float4(myMaterial[i].ks, c[0], c[1], c[2], c[3]);
+		set_float4(myMaterial[ObjectNum][i].ks, c[0], c[1], c[2], c[3]);
 	}
 
 	aiReleaseImport(scene);
@@ -423,7 +426,10 @@ void My_Init()
 	glLinkProgram(program);
 	um4p = glGetUniformLocation(program, "um4p");
 	um4mv = glGetUniformLocation(program, "um4mv");
-	terrain_tex_uniform = glGetUniformLocation(program, "ground_tex");
+	ambient_tex = glGetUniformLocation(program, "ambient_tex");
+	diffuse_tex = glGetUniformLocation(program, "diffuse_tex");
+	specular_tex = glGetUniformLocation(program, "specular_tex");
+	terrain_tex_uniform = glGetUniformLocation(program, "terrain_tex_uniform");
 	state = glGetUniformLocation(program, "state");
 	iLocMaterialInfo.ambient = glGetUniformLocation(program, "material.ambient");
 	iLocMaterialInfo.diffuse = glGetUniformLocation(program, "material.diffuse");
@@ -454,11 +460,13 @@ void My_Init()
 
 	fName[0] = "Castle/Castle_OBJ.obj";
 	Dir[0] = "Castle/";
-	//fName[0] = "City/The_City.obj";
-	//Dir[0] = "City/";
+	fName[1] = "Farmhouse/farmhouse_obj.obj";
+	Dir[1] = "Farmhouse/";
+	//fName[2] = "WoodHouse/WoodHouse.obj";
+	//Dir[2] = "WoodHouse/";
 
-	cam.center = vec3(0.0f, 0.0f, 0.0f);
-	cam.eye = vec3(0.0f, 0.0f, 9.0f);
+	cam.center = vec3(0.0f, 2.0f, 0.0f);
+	cam.eye = vec3(0.0f, 2.0f, 9.0f);
 	cam.up_vector = vec3(0.0f, 1.0f, 0.0f);
 	cam.yaw = 0.0f;
 	cam.pitch = 0.0f;
@@ -468,7 +476,14 @@ void My_Init()
 	for (int i = 0; i < NUM_OF_OBJ; i++) {
 		MyLoadObject(i);
 		if (i == 0) {
-			object_modeling[i] = mat4();
+			object_modeling[i] = translate(mat4(), vec3(0.0f, 0.00000001f, -250.0f));
+			//object_modeling[i] = mat4();
+		}
+		else if (i == 1) {
+			object_modeling[i] = translate(mat4(), vec3(100.0f, 0.00000001f, 0.0f));
+		}
+		else if (i == 2) {
+			object_modeling[i] = translate(mat4(), vec3(-100.0f, 0.00000001f, 0.0f));
 		}
 	}
 
@@ -508,24 +523,28 @@ void My_Display()
 	{
 		glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum]));
 		glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
-		glActiveTexture(GL_TEXTURE0);
-		if(ObjectNum == 0) glUniform1i(state, 1);
+		//glActiveTexture(GL_TEXTURE0);
+		if (ObjectNum == 0) glUniform1i(state, 1);
 		else glUniform1i(state, 2);
 		for (unsigned int i = 0; i < NumOfParts[ObjectNum]; i++)
 		{
 			glBindVertexArray(shape[ObjectNum][i].vao);
 			int materialID = shape[ObjectNum][i].materialId;
 
-			glUniform4fv(iLocMaterialInfo.ambient, 1, myMaterial[materialID].ka);
-			glUniform4fv(iLocMaterialInfo.diffuse, 1, myMaterial[materialID].kd);
-			glUniform4fv(iLocMaterialInfo.specular, 1, myMaterial[materialID].ks);
+			glUniform4fv(iLocMaterialInfo.ambient, 1, myMaterial[ObjectNum][materialID].ka);
+			glUniform4fv(iLocMaterialInfo.diffuse, 1, myMaterial[ObjectNum][materialID].kd);
+			glUniform4fv(iLocMaterialInfo.specular, 1, myMaterial[ObjectNum][materialID].ks);
 
+			glUniform1i(ambient_tex, 0);
+			glUniform1i(diffuse_tex, 1);
+			glUniform1i(specular_tex, 2);
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, myMaterial[materialID].diffuse_tex);
+			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][materialID].ambient_tex);
 			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, myMaterial[materialID].ambient_tex);
+			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][materialID].diffuse_tex);
 			glActiveTexture(GL_TEXTURE2);
-			glBindTexture(GL_TEXTURE_2D, myMaterial[materialID].specular_tex);
+			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][materialID].specular_tex);
+			
 			glDrawElements(GL_TRIANGLES, shape[ObjectNum][i].drawCount, GL_UNSIGNED_INT, 0);
 		}
 	}
