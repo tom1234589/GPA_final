@@ -3,7 +3,7 @@
 #define MENU_TIMER_START 1
 #define MENU_TIMER_STOP 2
 #define MENU_EXIT 3
-#define NUM_OF_OBJ 2
+#define NUM_OF_OBJ 3
 
 #ifndef max
 # define max(a,b) (((a)>(b))?(a):(b))
@@ -14,6 +14,9 @@ GLubyte timer_cnt = 0;
 bool timer_enabled = true;
 unsigned int timer_speed = 16;
 float pace = 2.0f;
+float deg90 = 3.1415926 / 2;
+float deg180 = 3.1415926;
+float deg270 = 3.1415926 * 1.5;
 
 using namespace glm;
 using namespace std;
@@ -21,10 +24,13 @@ using namespace std;
 mat4 view;
 mat4 projection;
 mat4 model;
-mat4 object_modeling[NUM_OF_OBJ];
+mat4 object_modeling[NUM_OF_OBJ][4];
 
 GLint um4p;
-GLint um4mv;
+GLint um4mv0;
+GLint um4mv90;
+GLint um4mv180;
+GLint um4mv270;
 GLint state;
 
 GLuint program;
@@ -46,7 +52,8 @@ int NumOfParts[NUM_OF_OBJ];
 GLuint skybox_prog;
 GLuint skybox_tex;
 GLuint skybox_vao;
-GLint skybox_view_matrix;
+GLuint skybox_vp_matrix;
+GLuint skybox_eye_pos;
 
 GLuint terrain_tex;
 GLuint terrain_vao;
@@ -128,6 +135,29 @@ void color4_to_float4(const aiColor4D *c, float f[4])
 	f[3] = c->a;
 }
 
+void translate4(mat4 m[4], vec3 v)
+{
+	m[0] = translate(mat4(), v);
+	m[1] = translate(mat4(), v);
+	m[2] = translate(mat4(), v);
+	m[3] = translate(mat4(), v);
+}
+
+void rotate3(mat4 m[4])
+{
+	m[1] = m[1] * rotate(mat4(), deg90, vec3(0, 1, 0));
+	m[2] = m[2] * rotate(mat4(), deg180, vec3(0, 1, 0));
+	m[3] = m[3] * rotate(mat4(), deg270, vec3(0, 1, 0));
+}
+
+void scale4(mat4 m[4], vec3 v)
+{
+	m[0] = m[0] * scale(mat4(), v);
+	m[1] = m[1] * scale(mat4(), v);
+	m[2] = m[2] * scale(mat4(), v);
+	m[3] = m[3] * scale(mat4(), v);
+}
+
 void MyLoadObject(int ObjectNum)
 {
 	const aiScene *scene = aiImportFile(fName[ObjectNum], aiProcessPreset_TargetRealtime_MaxQuality);
@@ -135,7 +165,7 @@ void MyLoadObject(int ObjectNum)
 
 	if (!scene)
 	{
-		std::cerr << "Could not load file " << fName << std::endl;
+		std::cerr << "Could not load file " << fName[ObjectNum] << std::endl;
 		return;
 	}
 
@@ -143,6 +173,16 @@ void MyLoadObject(int ObjectNum)
 	shape[ObjectNum] = new Shape[scene->mNumMeshes];
 
 	printf("Load Models Success ! Shapes size %d Maerial size %d\n", NumOfParts[ObjectNum], scene->mNumMaterials);
+
+	float Vmin[3];
+	float Vmax[3];
+
+	Vmin[0] = scene->mMeshes[0]->mVertices[0].x;
+	Vmin[1] = scene->mMeshes[0]->mVertices[0].y;
+	Vmin[2] = scene->mMeshes[0]->mVertices[0].z;
+	Vmax[0] = scene->mMeshes[0]->mVertices[0].x;
+	Vmax[1] = scene->mMeshes[0]->mVertices[0].y;
+	Vmax[2] = scene->mMeshes[0]->mVertices[0].z;
 
 	for (unsigned int i = 0; i < NumOfParts[ObjectNum]; i++)
 	{
@@ -173,6 +213,16 @@ void MyLoadObject(int ObjectNum)
 			glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 3 * mesh->mNumVertices, mesh->mVertices, GL_STATIC_DRAW);
 			glEnableVertexAttribArray(0);
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+			
+			// Update the max and min value of the object
+			for (int j = 0; j < mesh->mNumVertices; j++) {
+				Vmin[0] = min(Vmin[0], mesh->mVertices[j].x);
+				Vmin[1] = min(Vmin[1], mesh->mVertices[j].y);
+				Vmin[2] = min(Vmin[2], mesh->mVertices[j].z);
+				Vmax[0] = max(Vmax[0], mesh->mVertices[j].x);
+				Vmax[1] = max(Vmax[1], mesh->mVertices[j].y);
+				Vmax[2] = max(Vmax[2], mesh->mVertices[j].z);
+			}
 		}
 
 		// buffer for vertex normals
@@ -208,6 +258,10 @@ void MyLoadObject(int ObjectNum)
 		shape[ObjectNum][i].materialId = mesh->mMaterialIndex;
 		shape[ObjectNum][i].drawCount = 3 * mesh->mNumFaces;
 	}
+
+	cout << "Object Name : " << fName[ObjectNum] << '\n';
+	printf("max value (%f, %f, %f)\n", Vmax[0], Vmax[1], Vmax[2]);
+	printf("min value (%f, %f, %f)\n", Vmin[0], Vmin[1], Vmin[2]);
 
 	myMaterial[ObjectNum] = new Material[scene->mNumMaterials];
 
@@ -279,11 +333,17 @@ void MyLoadObject(int ObjectNum)
 		if (AI_SUCCESS == aiGetMaterialColor(material, AI_MATKEY_COLOR_AMBIENT, &ambient)) {
 			color4_to_float4(&ambient, c);
 		}
+		if (c[0] == 0.0f && c[1] == 0.0f && c[2] == 0.0f) {
+			set_float4(c, 0.2f, 0.2f, 0.2f, 1.0f);
+		}
 		set_float4(myMaterial[ObjectNum][i].ka, c[0], c[1], c[2], c[3]);
 
 		set_float4(c, 0.8f, 0.8f, 0.8f, 1.0f);
 		if (AI_SUCCESS == aiGetMaterialColor(material, AI_MATKEY_COLOR_DIFFUSE, &diffuse)) {
 			color4_to_float4(&diffuse, c);
+		}
+		if (c[0] == 0.0f && c[1] == 0.0f && c[2] == 0.0f) {
+			set_float4(c, 0.8f, 0.8f, 0.8f, 1.0f);
 		}
 		set_float4(myMaterial[ObjectNum][i].kd, c[0], c[1], c[2], c[3]);
 
@@ -425,7 +485,10 @@ void My_Init()
 	glAttachShader(program, fragmentShader);
 	glLinkProgram(program);
 	um4p = glGetUniformLocation(program, "um4p");
-	um4mv = glGetUniformLocation(program, "um4mv");
+	um4mv0 = glGetUniformLocation(program, "um4mv0");
+	um4mv90 = glGetUniformLocation(program, "um4mv90");
+	um4mv180 = glGetUniformLocation(program, "um4mv180");
+	um4mv270 = glGetUniformLocation(program, "um4mv270");
 	ambient_tex = glGetUniformLocation(program, "ambient_tex");
 	diffuse_tex = glGetUniformLocation(program, "diffuse_tex");
 	specular_tex = glGetUniformLocation(program, "specular_tex");
@@ -454,7 +517,8 @@ void My_Init()
 	glAttachShader(skybox_prog, vs);
 	glAttachShader(skybox_prog, fs);
 	glLinkProgram(skybox_prog);
-	skybox_view_matrix = glGetUniformLocation(skybox_prog, "view_matrix");
+	skybox_vp_matrix = glGetUniformLocation(skybox_prog, "vp_matrix");
+	skybox_eye_pos = glGetUniformLocation(skybox_prog, "eye_position");
 
 	glUseProgram(skybox_prog);
 
@@ -462,8 +526,8 @@ void My_Init()
 	Dir[0] = "Castle/";
 	fName[1] = "Farmhouse/farmhouse_obj.obj";
 	Dir[1] = "Farmhouse/";
-	//fName[2] = "WoodHouse/WoodHouse.obj";
-	//Dir[2] = "WoodHouse/";
+	fName[2] = "WoodHouse/WoodHouse.obj";
+	Dir[2] = "WoodHouse/";
 
 	cam.center = vec3(0.0f, 2.0f, 0.0f);
 	cam.eye = vec3(0.0f, 2.0f, 9.0f);
@@ -471,19 +535,23 @@ void My_Init()
 	cam.yaw = 0.0f;
 	cam.pitch = 0.0f;
 	terrain_model = mat4();
-	set_float4(lightPosition, 1.0f, 1.0f, 1.0f, 0.0f);
+	set_float4(lightPosition, -1.0f, 1.0f, 1.0f, 0.0f);
 
 	for (int i = 0; i < NUM_OF_OBJ; i++) {
 		MyLoadObject(i);
 		if (i == 0) {
-			object_modeling[i] = translate(mat4(), vec3(0.0f, 0.00000001f, -250.0f));
-			//object_modeling[i] = mat4();
+			object_modeling[i][0] = translate(mat4(), vec3(0.0f, 0.00000001f, -50.0f));
+			object_modeling[i][0] = object_modeling[i][0] * scale(mat4(), vec3(2.0f, 2.0f, 2.0f));
 		}
 		else if (i == 1) {
-			object_modeling[i] = translate(mat4(), vec3(100.0f, 0.00000001f, 0.0f));
+			translate4(object_modeling[i], vec3(100.0f, 0.00000001f, 0.0f));
+			rotate3(object_modeling[i]);
+			scale4(object_modeling[i], vec3(2.0f, 2.0f, 2.0f));
 		}
 		else if (i == 2) {
-			object_modeling[i] = translate(mat4(), vec3(-100.0f, 0.00000001f, 0.0f));
+			translate4(object_modeling[i], vec3(-100.0f, 0.00000001f, 0.0f));
+			rotate3(object_modeling[i]);
+			scale4(object_modeling[i], vec3(0.5f, 0.5f, 0.5f));
 		}
 	}
 
@@ -500,7 +568,9 @@ void My_Display()
 
 	glBindTexture(GL_TEXTURE_CUBE_MAP, skybox_tex);
 	glBindVertexArray(skybox_vao);
-	glUniformMatrix4fv(skybox_view_matrix, 1, GL_FALSE, &view[0][0]);
+	glUniformMatrix4fv(skybox_vp_matrix, 1, GL_FALSE, value_ptr(projection * view));
+	float skybox_eye[3] = { cam.eye.x, cam.eye.y, cam.eye.z };
+	glUniform3fv(skybox_eye_pos, 1, skybox_eye);
 	glDisable(GL_DEPTH_TEST);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glEnable(GL_DEPTH_TEST);
@@ -510,7 +580,7 @@ void My_Display()
 	glUniform4fv(iLoclightPosition, 1, lightPosition);
 
 	glBindVertexArray(ter_shape.vao);
-	glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * terrain_model));
+	glUniformMatrix4fv(um4mv0, 1, GL_FALSE, value_ptr(view * terrain_model));
 	glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, terrain_tex);
@@ -521,7 +591,10 @@ void My_Display()
 
 	for(int ObjectNum = 0; ObjectNum < NUM_OF_OBJ; ObjectNum++)
 	{
-		glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum]));
+		glUniformMatrix4fv(um4mv0, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum][0]));
+		glUniformMatrix4fv(um4mv90, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum][1]));
+		glUniformMatrix4fv(um4mv180, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum][2]));
+		glUniformMatrix4fv(um4mv270, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum][3]));
 		glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
 		//glActiveTexture(GL_TEXTURE0);
 		if (ObjectNum == 0) glUniform1i(state, 1);

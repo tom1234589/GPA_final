@@ -7,7 +7,10 @@ uniform sampler2D terrain_tex_uniform;
 
 out vec4 fragColor;
 
-uniform mat4 um4mv;
+uniform mat4 um4mv0;
+uniform mat4 um4mv90;
+uniform mat4 um4mv180;
+uniform mat4 um4mv270;
 uniform mat4 um4p;
 uniform int state;
 
@@ -50,6 +53,10 @@ void main()
 		fragColor = vec4(sum, 1.0);
 	}
 	else {
-		fragColor = texture(diffuse_tex, vertexData.texcoord);
+		amb = material.ambient.rgb * texture(ambient_tex, vertexData.texcoord).rgb;
+		dif = material.diffuse.rgb * texture(diffuse_tex, vertexData.texcoord).rgb * max(dot(L, N), 0.0);
+		spe = material.specular.rgb * texture(specular_tex, vertexData.texcoord).rgb * pow(max(dot(N, H), 0.0), 64);
+		sum = amb + dif + spe;
+		fragColor = vec4(sum, 1.0);
 	}
 }
