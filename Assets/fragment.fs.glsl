@@ -43,7 +43,8 @@ void main()
 	vec3 amb, dif, spe, sum;
 
 	if(state == 0) {
-		fragColor = texture(terrain_tex_uniform, vertexData.texcoord);
+		sum = texture(terrain_tex_uniform, vertexData.texcoord).rgb * vec3(0.8);
+		fragColor = vec4(sum, 1.0);
 	}
 	else if(state == 1) {
 		amb = vec3(0.2, 0.2, 0.2) * texture(diffuse_tex, vertexData.texcoord).rgb;

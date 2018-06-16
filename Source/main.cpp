@@ -46,6 +46,7 @@ typedef struct
 } Shape;
 
 Shape *shape[NUM_OF_OBJ];
+float modelcenter[NUM_OF_OBJ][3];
 Shape ter_shape;
 int NumOfParts[NUM_OF_OBJ];
 
@@ -135,12 +136,14 @@ void color4_to_float4(const aiColor4D *c, float f[4])
 	f[3] = c->a;
 }
 
+void initialize4(mat4 m[4])
+{
+	for (int i = 0; i < 4; i++) m[i] = mat4();
+}
+
 void translate4(mat4 m[4], vec3 v)
 {
-	m[0] = translate(mat4(), v);
-	m[1] = translate(mat4(), v);
-	m[2] = translate(mat4(), v);
-	m[3] = translate(mat4(), v);
+	for (int i = 0; i < 4; i++) m[i] = m[i] * translate(mat4(), v);
 }
 
 void rotate3(mat4 m[4])
@@ -152,10 +155,7 @@ void rotate3(mat4 m[4])
 
 void scale4(mat4 m[4], vec3 v)
 {
-	m[0] = m[0] * scale(mat4(), v);
-	m[1] = m[1] * scale(mat4(), v);
-	m[2] = m[2] * scale(mat4(), v);
-	m[3] = m[3] * scale(mat4(), v);
+	for (int i = 0; i < 4; i++) m[i] = m[i] * scale(mat4(), v);
 }
 
 void MyLoadObject(int ObjectNum)
@@ -259,6 +259,9 @@ void MyLoadObject(int ObjectNum)
 		shape[ObjectNum][i].drawCount = 3 * mesh->mNumFaces;
 	}
 
+	modelcenter[ObjectNum][0] = (Vmax[0] + Vmin[0]) / 2;
+	modelcenter[ObjectNum][1] = (Vmax[1] + Vmin[1]) / 2;
+	modelcenter[ObjectNum][2] = (Vmax[2] + Vmin[2]) / 2;
 	cout << "Object Name : " << fName[ObjectNum] << '\n';
 	printf("max value (%f, %f, %f)\n", Vmax[0], Vmax[1], Vmax[2]);
 	printf("min value (%f, %f, %f)\n", Vmin[0], Vmin[1], Vmin[2]);
@@ -540,18 +543,23 @@ void My_Init()
 	for (int i = 0; i < NUM_OF_OBJ; i++) {
 		MyLoadObject(i);
 		if (i == 0) {
-			object_modeling[i][0] = translate(mat4(), vec3(0.0f, 0.00000001f, -50.0f));
-			object_modeling[i][0] = object_modeling[i][0] * scale(mat4(), vec3(2.0f, 2.0f, 2.0f));
+			object_modeling[i][0] = translate(mat4(), vec3(0.0f, modelcenter[i][1] * 3.0f - 0.84f, -150.0f));
+			object_modeling[i][0] = object_modeling[i][0] * scale(mat4(), vec3(3.0f, 3.0f, 3.0f));
+			object_modeling[i][0] = object_modeling[i][0] * translate(mat4(), vec3(-modelcenter[i][0], -modelcenter[i][1], -modelcenter[i][2]));
 		}
 		else if (i == 1) {
-			translate4(object_modeling[i], vec3(100.0f, 0.00000001f, 0.0f));
+			initialize4(object_modeling[i]);
+			translate4(object_modeling[i], vec3(100.0f, modelcenter[i][1] * 2.0f, 0.0f));
 			rotate3(object_modeling[i]);
 			scale4(object_modeling[i], vec3(2.0f, 2.0f, 2.0f));
+			translate4(object_modeling[i], vec3(-modelcenter[i][0], -modelcenter[i][1], -modelcenter[i][2]));
 		}
 		else if (i == 2) {
-			translate4(object_modeling[i], vec3(-100.0f, 0.00000001f, 0.0f));
+			initialize4(object_modeling[i]);
+			translate4(object_modeling[i], vec3(-100.0f, 13.0f, 0.0f));
 			rotate3(object_modeling[i]);
-			scale4(object_modeling[i], vec3(0.5f, 0.5f, 0.5f));
+			scale4(object_modeling[i], vec3(0.1f, 0.1f, 0.1f));
+			translate4(object_modeling[i], vec3(-modelcenter[i][0], -modelcenter[i][1], -modelcenter[i][2]));
 		}
 	}
 
