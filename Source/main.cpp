@@ -3,7 +3,8 @@
 #define MENU_TIMER_START 1
 #define MENU_TIMER_STOP 2
 #define MENU_EXIT 3
-#define NUM_OF_OBJ 3
+#define FOG 4
+#define NUM_OF_OBJ 1
 
 #ifndef max
 # define max(a,b) (((a)>(b))?(a):(b))
@@ -24,13 +25,10 @@ using namespace std;
 mat4 view;
 mat4 projection;
 mat4 model;
-mat4 object_modeling[NUM_OF_OBJ][4];
+mat4 object_modeling[NUM_OF_OBJ];
 
 GLint um4p;
-GLint um4mv0;
-GLint um4mv90;
-GLint um4mv180;
-GLint um4mv270;
+GLint um4mv;
 GLint state;
 
 GLuint program;
@@ -100,6 +98,9 @@ GLuint ambient_tex;
 GLuint diffuse_tex;
 GLuint specular_tex;
 
+bool fogEnabled;
+GLuint fogUniform;
+
 char** loadShaderSource(const char* file)
 {
     FILE* fp = fopen(file, "rb");
@@ -134,28 +135,6 @@ void color4_to_float4(const aiColor4D *c, float f[4])
 	f[1] = c->g;
 	f[2] = c->b;
 	f[3] = c->a;
-}
-
-void initialize4(mat4 m[4])
-{
-	for (int i = 0; i < 4; i++) m[i] = mat4();
-}
-
-void translate4(mat4 m[4], vec3 v)
-{
-	for (int i = 0; i < 4; i++) m[i] = m[i] * translate(mat4(), v);
-}
-
-void rotate3(mat4 m[4])
-{
-	m[1] = m[1] * rotate(mat4(), deg90, vec3(0, 1, 0));
-	m[2] = m[2] * rotate(mat4(), deg180, vec3(0, 1, 0));
-	m[3] = m[3] * rotate(mat4(), deg270, vec3(0, 1, 0));
-}
-
-void scale4(mat4 m[4], vec3 v)
-{
-	for (int i = 0; i < 4; i++) m[i] = m[i] * scale(mat4(), v);
 }
 
 void MyLoadObject(int ObjectNum)
@@ -332,21 +311,21 @@ void MyLoadObject(int ObjectNum)
 		aiColor4D diffuse;
 		aiColor4D specular;
 
-		set_float4(c, 0.2f, 0.2f, 0.2f, 1.0f);
+		set_float4(c, 0.3f, 0.3f, 0.3f, 1.0f);
 		if (AI_SUCCESS == aiGetMaterialColor(material, AI_MATKEY_COLOR_AMBIENT, &ambient)) {
 			color4_to_float4(&ambient, c);
 		}
 		if (c[0] == 0.0f && c[1] == 0.0f && c[2] == 0.0f) {
-			set_float4(c, 0.2f, 0.2f, 0.2f, 1.0f);
+			set_float4(c, 0.3f, 0.3f, 0.3f, 1.0f);
 		}
 		set_float4(myMaterial[ObjectNum][i].ka, c[0], c[1], c[2], c[3]);
 
-		set_float4(c, 0.8f, 0.8f, 0.8f, 1.0f);
+		set_float4(c, 0.75f, 0.75f, 0.75f, 1.0f);
 		if (AI_SUCCESS == aiGetMaterialColor(material, AI_MATKEY_COLOR_DIFFUSE, &diffuse)) {
 			color4_to_float4(&diffuse, c);
 		}
 		if (c[0] == 0.0f && c[1] == 0.0f && c[2] == 0.0f) {
-			set_float4(c, 0.8f, 0.8f, 0.8f, 1.0f);
+			set_float4(c, 0.75f, 0.75f, 0.75f, 1.0f);
 		}
 		set_float4(myMaterial[ObjectNum][i].kd, c[0], c[1], c[2], c[3]);
 
@@ -488,10 +467,7 @@ void My_Init()
 	glAttachShader(program, fragmentShader);
 	glLinkProgram(program);
 	um4p = glGetUniformLocation(program, "um4p");
-	um4mv0 = glGetUniformLocation(program, "um4mv0");
-	um4mv90 = glGetUniformLocation(program, "um4mv90");
-	um4mv180 = glGetUniformLocation(program, "um4mv180");
-	um4mv270 = glGetUniformLocation(program, "um4mv270");
+	um4mv = glGetUniformLocation(program, "um4mv");
 	ambient_tex = glGetUniformLocation(program, "ambient_tex");
 	diffuse_tex = glGetUniformLocation(program, "diffuse_tex");
 	specular_tex = glGetUniformLocation(program, "specular_tex");
@@ -501,6 +477,7 @@ void My_Init()
 	iLocMaterialInfo.diffuse = glGetUniformLocation(program, "material.diffuse");
 	iLocMaterialInfo.specular = glGetUniformLocation(program, "material.specular");
 	iLoclightPosition = glGetUniformLocation(program, "lightPosition");
+	fogUniform = glGetUniformLocation(program, "fogUniform");
 
 	glUseProgram(program);
 
@@ -525,12 +502,8 @@ void My_Init()
 
 	glUseProgram(skybox_prog);
 
-	fName[0] = "Castle/Castle_OBJ.obj";
-	Dir[0] = "Castle/";
-	fName[1] = "Farmhouse/farmhouse_obj.obj";
-	Dir[1] = "Farmhouse/";
-	fName[2] = "WoodHouse/WoodHouse.obj";
-	Dir[2] = "WoodHouse/";
+	fName[0] = "Sci-Fi/Center City Sci-Fi.obj";
+	Dir[0] = "Sci-Fi/";
 
 	cam.center = vec3(0.0f, 2.0f, 0.0f);
 	cam.eye = vec3(0.0f, 2.0f, 9.0f);
@@ -539,27 +512,12 @@ void My_Init()
 	cam.pitch = 0.0f;
 	terrain_model = mat4();
 	set_float4(lightPosition, -1.0f, 1.0f, 1.0f, 0.0f);
+	fogEnabled = true;
 
 	for (int i = 0; i < NUM_OF_OBJ; i++) {
 		MyLoadObject(i);
 		if (i == 0) {
-			object_modeling[i][0] = translate(mat4(), vec3(0.0f, modelcenter[i][1] * 3.0f - 0.84f, -150.0f));
-			object_modeling[i][0] = object_modeling[i][0] * scale(mat4(), vec3(3.0f, 3.0f, 3.0f));
-			object_modeling[i][0] = object_modeling[i][0] * translate(mat4(), vec3(-modelcenter[i][0], -modelcenter[i][1], -modelcenter[i][2]));
-		}
-		else if (i == 1) {
-			initialize4(object_modeling[i]);
-			translate4(object_modeling[i], vec3(100.0f, modelcenter[i][1] * 2.0f, 0.0f));
-			rotate3(object_modeling[i]);
-			scale4(object_modeling[i], vec3(2.0f, 2.0f, 2.0f));
-			translate4(object_modeling[i], vec3(-modelcenter[i][0], -modelcenter[i][1], -modelcenter[i][2]));
-		}
-		else if (i == 2) {
-			initialize4(object_modeling[i]);
-			translate4(object_modeling[i], vec3(-100.0f, 13.0f, 0.0f));
-			rotate3(object_modeling[i]);
-			scale4(object_modeling[i], vec3(0.1f, 0.1f, 0.1f));
-			translate4(object_modeling[i], vec3(-modelcenter[i][0], -modelcenter[i][1], -modelcenter[i][2]));
+			object_modeling[i] = translate(mat4(), vec3(-modelcenter[i][0], -modelcenter[i][1], -modelcenter[i][2]));
 		}
 	}
 
@@ -586,27 +544,24 @@ void My_Display()
 	glUseProgram(program);
 
 	glUniform4fv(iLoclightPosition, 1, lightPosition);
+	glUniform1i(fogUniform, fogEnabled ? 1 : 0);
 
 	glBindVertexArray(ter_shape.vao);
-	glUniformMatrix4fv(um4mv0, 1, GL_FALSE, value_ptr(view * terrain_model));
+	glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * terrain_model));
 	glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, terrain_tex);
 	glUniform1i(terrain_tex_uniform, 3);
-	glUniform1i(state, 0);
+	glUniform1i(state, 99);
 
-	glDrawElementsInstanced(GL_TRIANGLES, ter_shape.drawCount, GL_UNSIGNED_INT, 0, 99 * 99);
+	//glDrawElementsInstanced(GL_TRIANGLES, ter_shape.drawCount, GL_UNSIGNED_INT, 0, 99 * 99);
 
 	for(int ObjectNum = 0; ObjectNum < NUM_OF_OBJ; ObjectNum++)
 	{
-		glUniformMatrix4fv(um4mv0, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum][0]));
-		glUniformMatrix4fv(um4mv90, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum][1]));
-		glUniformMatrix4fv(um4mv180, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum][2]));
-		glUniformMatrix4fv(um4mv270, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum][3]));
+		glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum]));
 		glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
 		//glActiveTexture(GL_TEXTURE0);
-		if (ObjectNum == 0) glUniform1i(state, 1);
-		else glUniform1i(state, 2);
+		glUniform1i(state, 0);
 		for (unsigned int i = 0; i < NumOfParts[ObjectNum]; i++)
 		{
 			glBindVertexArray(shape[ObjectNum][i].vao);
@@ -765,6 +720,9 @@ void My_Menu(int id)
 	case MENU_TIMER_STOP:
 		timer_enabled = false;
 		break;
+	case FOG:
+		fogEnabled = !fogEnabled;
+		break;
 	case MENU_EXIT:
 		exit(0);
 		break;
@@ -802,6 +760,7 @@ int main(int argc, char *argv[])
 
 	glutSetMenu(menu_main);
 	glutAddSubMenu("Timer", menu_timer);
+	glutAddMenuEntry("Fog", FOG);
 	glutAddMenuEntry("Exit", MENU_EXIT);
 
 	glutSetMenu(menu_timer);

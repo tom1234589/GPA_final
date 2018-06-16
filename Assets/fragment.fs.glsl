@@ -7,13 +7,9 @@ uniform sampler2D terrain_tex_uniform;
 
 out vec4 fragColor;
 
-uniform mat4 um4mv0;
-uniform mat4 um4mv90;
-uniform mat4 um4mv180;
-uniform mat4 um4mv270;
+uniform mat4 um4mv;
 uniform mat4 um4p;
 uniform int state;
-
 
 in VS_OUT
 {
@@ -24,6 +20,10 @@ in VS_OUT
 } vertexData;
 
 uniform vec4 lightPosition;
+uniform bool fogUniform;
+
+in vec3 world_coord;
+in vec3 viewSpace_coord;
 
 struct MaterialInfo
 {
@@ -34,6 +34,18 @@ struct MaterialInfo
 
 uniform MaterialInfo material;
 
+const vec4 fogColor = vec4(0.7, 0.8, 0.9, 0.0);
+
+vec4 fog(vec4 c)
+{
+	float z = length(viewSpace_coord) / 100.0f;
+	float fogFactor = 0;
+	float fogDensity = 0.2;
+	fogFactor = 1.0 / exp(z * fogDensity);
+	fogFactor = clamp(fogFactor, 0.0, 1.0);
+	return mix(fogColor, c, fogFactor);
+}
+
 void main()
 {
 	vec3 N = normalize(vertexData.N);
@@ -42,22 +54,26 @@ void main()
 	vec3 H = normalize(L + V);
 	vec3 amb, dif, spe, sum;
 
-	if(state == 0) {
+	// state 99 is ground
+	// state 0 is city
+	if(state == 99) {
 		sum = texture(terrain_tex_uniform, vertexData.texcoord).rgb * vec3(0.8);
 		fragColor = vec4(sum, 1.0);
 	}
-	else if(state == 1) {
-		amb = vec3(0.2, 0.2, 0.2) * texture(diffuse_tex, vertexData.texcoord).rgb;
-		dif = vec3(0.8, 0.8, 0.8) * texture(diffuse_tex, vertexData.texcoord).rgb * max(dot(L, N), 0.0);
-		spe = vec3(1.0, 1.0, 1.0) * texture(diffuse_tex, vertexData.texcoord).rgb * pow(max(dot(N, H), 0.0), 64);
+	else if(state == 0) {
+		amb = material.ambient.rgb * texture(diffuse_tex, vertexData.texcoord).rgb;
+		dif = material.diffuse.rgb * texture(diffuse_tex, vertexData.texcoord).rgb * max(dot(L, N), 0.0);
+		spe = material.specular.rgb * texture(diffuse_tex, vertexData.texcoord).rgb * pow(max(dot(N, H), 0.0), 64);
 		sum = amb + dif + spe;
-		fragColor = vec4(sum, 1.0);
+		if(fogUniform) fragColor = fog(vec4(sum, 1.0));
+		else fragColor = vec4(sum, 1.0);
 	}
 	else {
 		amb = material.ambient.rgb * texture(ambient_tex, vertexData.texcoord).rgb;
 		dif = material.diffuse.rgb * texture(diffuse_tex, vertexData.texcoord).rgb * max(dot(L, N), 0.0);
 		spe = material.specular.rgb * texture(specular_tex, vertexData.texcoord).rgb * pow(max(dot(N, H), 0.0), 64);
 		sum = amb + dif + spe;
-		fragColor = vec4(sum, 1.0);
+		if(fogUniform) fragColor = fog(vec4(sum, 1.0));
+		else fragColor = vec4(sum, 1.0);
 	}
 }
