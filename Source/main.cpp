@@ -502,8 +502,8 @@ void My_Init()
 
 	glUseProgram(skybox_prog);
 
-	fName[0] = "Sci-Fi/Center City Sci-Fi.obj";
-	Dir[0] = "Sci-Fi/";
+	fName[0] = "Scifi/Scifi downtown city.obj";
+	Dir[0] = "Scifi/";
 
 	cam.center = vec3(0.0f, 2.0f, 0.0f);
 	cam.eye = vec3(0.0f, 2.0f, 9.0f);
@@ -511,7 +511,7 @@ void My_Init()
 	cam.yaw = 0.0f;
 	cam.pitch = 0.0f;
 	terrain_model = mat4();
-	set_float4(lightPosition, -1.0f, 1.0f, 1.0f, 0.0f);
+	set_float4(lightPosition, 1.0f, 1.0f, 1.0f, 0.0f);
 	fogEnabled = true;
 
 	for (int i = 0; i < NUM_OF_OBJ; i++) {
@@ -521,7 +521,7 @@ void My_Init()
 		}
 	}
 
-	MyLoadPlane();
+	//MyLoadPlane();
 	MySkybox();
 }
 
@@ -546,13 +546,13 @@ void My_Display()
 	glUniform4fv(iLoclightPosition, 1, lightPosition);
 	glUniform1i(fogUniform, fogEnabled ? 1 : 0);
 
-	glBindVertexArray(ter_shape.vao);
+	/*glBindVertexArray(ter_shape.vao);
 	glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * terrain_model));
 	glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, terrain_tex);
 	glUniform1i(terrain_tex_uniform, 3);
-	glUniform1i(state, 99);
+	glUniform1i(state, 99);*/
 
 	//glDrawElementsInstanced(GL_TRIANGLES, ter_shape.drawCount, GL_UNSIGNED_INT, 0, 99 * 99);
 

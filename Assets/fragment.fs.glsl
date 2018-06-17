@@ -67,6 +67,7 @@ void main()
 		sum = amb + dif + spe;
 		if(fogUniform) fragColor = fog(vec4(sum, 1.0));
 		else fragColor = vec4(sum, 1.0);
+		//fragColor = texture(diffuse_tex, vertexData.texcoord);
 	}
 	else {
 		amb = material.ambient.rgb * texture(ambient_tex, vertexData.texcoord).rgb;
