@@ -18,6 +18,8 @@ float pace = 2.0f;
 float deg90 = 3.1415926 / 2;
 float deg180 = 3.1415926;
 float deg270 = 3.1415926 * 1.5;
+const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+float seaDep = -2.5; //seaDep must be less than a constant(0 now) or it will be strange
 
 using namespace glm;
 using namespace std;
@@ -45,6 +47,7 @@ typedef struct
 
 Shape *shape[NUM_OF_OBJ];
 float modelcenter[NUM_OF_OBJ][3];
+float modelheight[NUM_OF_OBJ];
 Shape ter_shape;
 int NumOfParts[NUM_OF_OBJ];
 
@@ -93,6 +96,8 @@ struct iLocMaterialInfo
 }iLocMaterialInfo;
 
 float lightPosition[4];
+float light_center[4];
+float light_upVec[4];
 GLuint iLoclightPosition;
 GLuint ambient_tex;
 GLuint diffuse_tex;
@@ -100,6 +105,24 @@ GLuint specular_tex;
 
 bool fogEnabled;
 GLuint fogUniform;
+
+GLuint reflectProgram;
+struct _ReflectInfo
+{
+	GLuint um4mv;
+	GLuint um4p;
+	GLuint tex;
+	GLuint seaDep;
+	GLuint Ka;
+	GLuint Kd;
+	GLuint Ks;
+	GLuint um4shadow;
+	GLuint shadowmap;
+	GLuint lightPos;
+} ReflectInfo;
+
+GLuint depth_fbo;
+GLuint depth_tex;
 
 char** loadShaderSource(const char* file)
 {
@@ -241,6 +264,7 @@ void MyLoadObject(int ObjectNum)
 	modelcenter[ObjectNum][0] = (Vmax[0] + Vmin[0]) / 2;
 	modelcenter[ObjectNum][1] = (Vmax[1] + Vmin[1]) / 2;
 	modelcenter[ObjectNum][2] = (Vmax[2] + Vmin[2]) / 2;
+	modelheight[ObjectNum] = Vmax[1] - Vmin[1];
 	cout << "Object Name : " << fName[ObjectNum] << '\n';
 	printf("max value (%f, %f, %f)\n", Vmax[0], Vmax[1], Vmax[2]);
 	printf("min value (%f, %f, %f)\n", Vmin[0], Vmin[1], Vmin[2]);
@@ -502,6 +526,35 @@ void My_Init()
 
 	glUseProgram(skybox_prog);
 
+	reflectProgram = glCreateProgram();
+	GLuint reflectvs = glCreateShader(GL_VERTEX_SHADER);
+	GLuint reflectfs = glCreateShader(GL_FRAGMENT_SHADER);
+	char** reflect_vs_src = loadShaderSource("reflect_vs.glsl");
+	char** reflect_fs_src = loadShaderSource("reflect_fs.glsl");
+	glShaderSource(reflectvs, 1, reflect_vs_src, NULL);
+	glShaderSource(reflectfs, 1, reflect_fs_src, NULL);
+	freeShaderSource(reflect_vs_src);
+	freeShaderSource(reflect_fs_src);
+	glCompileShader(reflectvs);
+	glCompileShader(reflectfs);
+	shaderLog(reflectvs);
+	shaderLog(reflectfs);
+	glAttachShader(reflectProgram, reflectvs);
+	glAttachShader(reflectProgram, reflectfs);
+	glLinkProgram(reflectProgram);
+	ReflectInfo.um4mv = glGetUniformLocation(reflectProgram, "um4mv");
+	ReflectInfo.um4p = glGetUniformLocation(reflectProgram, "um4p");
+	ReflectInfo.tex = glGetUniformLocation(reflectProgram, "tex");
+	ReflectInfo.seaDep = glGetUniformLocation(reflectProgram, "seaDep");
+	ReflectInfo.Ka = glGetUniformLocation(reflectProgram, "Ka");
+	ReflectInfo.Kd = glGetUniformLocation(reflectProgram, "Kd");
+	ReflectInfo.Ks = glGetUniformLocation(reflectProgram, "Ks");
+	ReflectInfo.um4shadow = glGetUniformLocation(reflectProgram, "um4shadow");
+	ReflectInfo.shadowmap = glGetUniformLocation(reflectProgram, "shadowmap");
+	ReflectInfo.lightPos = glGetUniformLocation(reflectProgram, "lightPos");
+
+	glUseProgram(reflectProgram);
+
 	fName[0] = "Scifi/Scifi downtown city.obj";
 	Dir[0] = "Scifi/";
 
@@ -511,23 +564,45 @@ void My_Init()
 	cam.yaw = 0.0f;
 	cam.pitch = 0.0f;
 	terrain_model = mat4();
-	set_float4(lightPosition, 1.0f, 1.0f, 1.0f, 0.0f);
+	set_float4(lightPosition, -1000.0f, 1000.0f, 1000.0f, 0.0f);
+	set_float4(light_center, 0.0f, 0.0f, 0.0f, 0.0f);
+	set_float4(light_upVec, 0.0f, 1.0f, 0.0f, 0.0f);
 	fogEnabled = true;
 
 	for (int i = 0; i < NUM_OF_OBJ; i++) {
 		MyLoadObject(i);
 		if (i == 0) {
-			object_modeling[i] = translate(mat4(), vec3(-modelcenter[i][0], -modelcenter[i][1], -modelcenter[i][2]));
+			object_modeling[i] = translate(mat4(), vec3(0, modelheight[i]/2-12.0f, 0));
+			object_modeling[i] = object_modeling[i] * translate(mat4(), vec3(-modelcenter[i][0], -modelcenter[i][1], -modelcenter[i][2]));
 		}
 	}
 
 	//MyLoadPlane();
 	MySkybox();
+
+	glGenFramebuffers(1, &depth_fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, depth_fbo);
+	glGenTextures(1, &depth_tex);
+	glBindTexture(GL_TEXTURE_2D, depth_tex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_tex, 0);
+	glDrawBuffer(GL_NONE);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 // GLUT callback. Called to draw the scene.
 void My_Display()
 {
+	const float shadow_range = 500.0f;
+	mat4 light_proj_matrix = ortho(-shadow_range, shadow_range, -shadow_range, shadow_range, 0.0f, 3000.0f);
+	mat4 light_view_matrix = lookAt(vec3(20.0f, 20.0f, 20.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f));
+
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glUseProgram(skybox_prog);
@@ -584,6 +659,38 @@ void My_Display()
 			glDrawElements(GL_TRIANGLES, shape[ObjectNum][i].drawCount, GL_UNSIGNED_INT, 0);
 		}
 	}
+
+	glUseProgram(reflectProgram);
+	glUniformMatrix4fv(ReflectInfo.um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[0]));
+	glUniformMatrix4fv(ReflectInfo.um4p, 1, GL_FALSE, value_ptr(projection));
+	glActiveTexture(GL_TEXTURE0);
+	glUniform1i(ReflectInfo.shadowmap, 0);
+	glBindTexture(GL_TEXTURE_2D, depth_tex);
+	glActiveTexture(GL_TEXTURE1);
+	glUniform1i(ReflectInfo.tex, 1);
+	glUniform1f(ReflectInfo.seaDep, seaDep);
+
+	mat4 scale_bias_matrix = translate(mat4(), vec3(0.5f, 0.5f, 0.5f));
+	scale_bias_matrix = scale(scale_bias_matrix, vec3(0.5f, 0.5f, 0.5f));
+	mat4 shadow_sbpv_matrix = scale_bias_matrix * light_proj_matrix* light_view_matrix;
+	mat4 shadow_matrix = shadow_sbpv_matrix * model;
+	glUniformMatrix4fv(ReflectInfo.um4shadow, 1, GL_FALSE, value_ptr(shadow_matrix));
+	glUniform4fv(ReflectInfo.lightPos, 1, lightPosition);
+
+	for (unsigned int i = 0; i < NumOfParts[0]; i++)
+	{
+		glBindVertexArray(shape[0][i].vao);
+		int materialID = shape[0][i].materialId;
+
+		glUniform4fv(ReflectInfo.Ka, 1, myMaterial[0][materialID].ka);
+		glUniform4fv(ReflectInfo.Kd, 1, myMaterial[0][materialID].kd);
+		glUniform4fv(ReflectInfo.Ks, 1, myMaterial[0][materialID].ks);
+
+		glBindTexture(GL_TEXTURE_2D, myMaterial[0][materialID].diffuse_tex);
+
+		glDrawElements(GL_TRIANGLES, shape[0][i].drawCount, GL_UNSIGNED_INT, 0);
+	}
+
     glutSwapBuffers();
 }
 

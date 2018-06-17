@@ -41,7 +41,7 @@ vec4 fog(vec4 c)
 	float z = length(viewSpace_coord) / 100.0f;
 	float fogFactor = 0;
 	float fogDensity = 0.2;
-	fogFactor = 1.0 / exp(z * fogDensity);
+	fogFactor = 1.0 / exp(z * fogDensity * z * fogDensity);
 	fogFactor = clamp(fogFactor, 0.0, 1.0);
 	return mix(fogColor, c, fogFactor);
 }

@@ -8,5 +8,7 @@
     <None Include="..\..\Assets\vertex.vs.glsl" />
     <None Include="..\..\Assets\skybox_fs.fs.glsl" />
     <None Include="..\..\Assets\skybox_vs.vs.glsl" />
+    <None Include="..\..\Assets\reflect_fs.glsl" />
+    <None Include="..\..\Assets\reflect_vs.glsl" />
   </ItemGroup>
 </Project>

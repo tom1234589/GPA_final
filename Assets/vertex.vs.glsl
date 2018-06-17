@@ -39,6 +39,6 @@ void main()
 	}
 
 	vertexData.texcoord = iv2tex_coord;
-	vertexData.L = lightPosition.xyz;
+	vertexData.L = lightPosition.xyz - P.xyz;
 	vertexData.V = -P.xyz;
 }
