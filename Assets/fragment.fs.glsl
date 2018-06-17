@@ -58,7 +58,7 @@ void main()
 	// state 0 is city
 	if(state == 99) {
 		sum = texture(terrain_tex_uniform, vertexData.texcoord).rgb * vec3(0.8);
-		fragColor = vec4(sum, 1.0);
+		fragColor = vec4(sum, 0.7);
 	}
 	else if(state == 0) {
 		amb = material.ambient.rgb * texture(diffuse_tex, vertexData.texcoord).rgb;

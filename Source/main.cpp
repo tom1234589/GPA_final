@@ -11,7 +11,7 @@
 # define min(a,b) (((a)<(b))?(a):(b))
 #endif
 
-GLubyte timer_cnt = 0;
+int timer_cnt = 0;
 bool timer_enabled = true;
 unsigned int timer_speed = 16;
 float pace = 2.0f;
@@ -19,7 +19,7 @@ float deg90 = 3.1415926 / 2;
 float deg180 = 3.1415926;
 float deg270 = 3.1415926 * 1.5;
 const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
-float seaDep = -2.5; //seaDep must be less than a constant(0 now) or it will be strange
+float seaDep = 0; //seaDep must be less than a constant(0 now) or it will be strange
 
 using namespace glm;
 using namespace std;
@@ -32,6 +32,7 @@ mat4 object_modeling[NUM_OF_OBJ];
 GLint um4p;
 GLint um4mv;
 GLint state;
+GLuint time_uniform;
 
 GLuint program;
 typedef struct
@@ -123,6 +124,9 @@ struct _ReflectInfo
 
 GLuint depth_fbo;
 GLuint depth_tex;
+
+int last_time;
+int nframes;
 
 char** loadShaderSource(const char* file)
 {
@@ -454,7 +458,7 @@ void MyLoadPlane()
 
 	ter_shape.drawCount = 3 * mesh->mNumFaces;
 
-	texture_data tdata = load_png("ground.png");
+	texture_data tdata = load_png("water.jpg");
 
 	glGenTextures(1, &terrain_tex);
 	glBindTexture(GL_TEXTURE_2D, terrain_tex);
@@ -473,6 +477,8 @@ void My_Init()
 	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	program = glCreateProgram();
 	GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -502,6 +508,7 @@ void My_Init()
 	iLocMaterialInfo.specular = glGetUniformLocation(program, "material.specular");
 	iLoclightPosition = glGetUniformLocation(program, "lightPosition");
 	fogUniform = glGetUniformLocation(program, "fogUniform");
+	time_uniform = glGetUniformLocation(program, "time");
 
 	glUseProgram(program);
 
@@ -558,8 +565,8 @@ void My_Init()
 	fName[0] = "Scifi/Scifi downtown city.obj";
 	Dir[0] = "Scifi/";
 
-	cam.center = vec3(0.0f, 2.0f, 0.0f);
-	cam.eye = vec3(0.0f, 2.0f, 9.0f);
+	cam.center = vec3(0.0f, 5.0f, 0.0f);
+	cam.eye = vec3(0.0f, 5.0f, 9.0f);
 	cam.up_vector = vec3(0.0f, 1.0f, 0.0f);
 	cam.yaw = 0.0f;
 	cam.pitch = 0.0f;
@@ -572,12 +579,12 @@ void My_Init()
 	for (int i = 0; i < NUM_OF_OBJ; i++) {
 		MyLoadObject(i);
 		if (i == 0) {
-			object_modeling[i] = translate(mat4(), vec3(0, modelheight[i]/2-12.0f, 0));
+			object_modeling[i] = translate(mat4(), vec3(0, modelheight[i]/2-10.0f, 0));
 			object_modeling[i] = object_modeling[i] * translate(mat4(), vec3(-modelcenter[i][0], -modelcenter[i][1], -modelcenter[i][2]));
 		}
 	}
 
-	//MyLoadPlane();
+	MyLoadPlane();
 	MySkybox();
 
 	glGenFramebuffers(1, &depth_fbo);
@@ -594,11 +601,23 @@ void My_Init()
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_tex, 0);
 	glDrawBuffer(GL_NONE);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	//last_time = glutGet(GLUT_ELAPSED_TIME);
+	//nframes = 0;
 }
 
 // GLUT callback. Called to draw the scene.
 void My_Display()
 {
+	/*int current_time = glutGet(GLUT_ELAPSED_TIME);
+	nframes++;
+	if (current_time - last_time >= 1000) { // If last prinf() was more than 1 sec ago
+										 // printf and reset timer
+		printf("%f frames per second\n", double(nframes*1000) / double(current_time - last_time));
+		nframes = 0;
+		last_time += 1000;
+	}*/
+
 	const float shadow_range = 500.0f;
 	mat4 light_proj_matrix = ortho(-shadow_range, shadow_range, -shadow_range, shadow_range, 0.0f, 3000.0f);
 	mat4 light_view_matrix = lookAt(vec3(20.0f, 20.0f, 20.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f));
@@ -615,50 +634,6 @@ void My_Display()
 	glDisable(GL_DEPTH_TEST);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glEnable(GL_DEPTH_TEST);
-
-	glUseProgram(program);
-
-	glUniform4fv(iLoclightPosition, 1, lightPosition);
-	glUniform1i(fogUniform, fogEnabled ? 1 : 0);
-
-	/*glBindVertexArray(ter_shape.vao);
-	glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * terrain_model));
-	glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
-	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_2D, terrain_tex);
-	glUniform1i(terrain_tex_uniform, 3);
-	glUniform1i(state, 99);*/
-
-	//glDrawElementsInstanced(GL_TRIANGLES, ter_shape.drawCount, GL_UNSIGNED_INT, 0, 99 * 99);
-
-	for(int ObjectNum = 0; ObjectNum < NUM_OF_OBJ; ObjectNum++)
-	{
-		glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum]));
-		glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
-		//glActiveTexture(GL_TEXTURE0);
-		glUniform1i(state, 0);
-		for (unsigned int i = 0; i < NumOfParts[ObjectNum]; i++)
-		{
-			glBindVertexArray(shape[ObjectNum][i].vao);
-			int materialID = shape[ObjectNum][i].materialId;
-
-			glUniform4fv(iLocMaterialInfo.ambient, 1, myMaterial[ObjectNum][materialID].ka);
-			glUniform4fv(iLocMaterialInfo.diffuse, 1, myMaterial[ObjectNum][materialID].kd);
-			glUniform4fv(iLocMaterialInfo.specular, 1, myMaterial[ObjectNum][materialID].ks);
-
-			glUniform1i(ambient_tex, 0);
-			glUniform1i(diffuse_tex, 1);
-			glUniform1i(specular_tex, 2);
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][materialID].ambient_tex);
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][materialID].diffuse_tex);
-			glActiveTexture(GL_TEXTURE2);
-			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][materialID].specular_tex);
-			
-			glDrawElements(GL_TRIANGLES, shape[ObjectNum][i].drawCount, GL_UNSIGNED_INT, 0);
-		}
-	}
 
 	glUseProgram(reflectProgram);
 	glUniformMatrix4fv(ReflectInfo.um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[0]));
@@ -690,6 +665,51 @@ void My_Display()
 
 		glDrawElements(GL_TRIANGLES, shape[0][i].drawCount, GL_UNSIGNED_INT, 0);
 	}
+
+	glUseProgram(program);
+
+	glUniform4fv(iLoclightPosition, 1, lightPosition);
+	glUniform1i(fogUniform, fogEnabled ? 1 : 0);
+	glUniform1i(time_uniform, timer_cnt);
+
+	for(int ObjectNum = 0; ObjectNum < NUM_OF_OBJ; ObjectNum++)
+	{
+		glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum]));
+		glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
+		//glActiveTexture(GL_TEXTURE0);
+		glUniform1i(state, 0);
+		for (unsigned int i = 0; i < NumOfParts[ObjectNum]; i++)
+		{
+			glBindVertexArray(shape[ObjectNum][i].vao);
+			int materialID = shape[ObjectNum][i].materialId;
+
+			glUniform4fv(iLocMaterialInfo.ambient, 1, myMaterial[ObjectNum][materialID].ka);
+			glUniform4fv(iLocMaterialInfo.diffuse, 1, myMaterial[ObjectNum][materialID].kd);
+			glUniform4fv(iLocMaterialInfo.specular, 1, myMaterial[ObjectNum][materialID].ks);
+
+			glUniform1i(ambient_tex, 0);
+			glUniform1i(diffuse_tex, 1);
+			glUniform1i(specular_tex, 2);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][materialID].ambient_tex);
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][materialID].diffuse_tex);
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, myMaterial[ObjectNum][materialID].specular_tex);
+			
+			glDrawElements(GL_TRIANGLES, shape[ObjectNum][i].drawCount, GL_UNSIGNED_INT, 0);
+		}
+	}
+
+	glBindVertexArray(ter_shape.vao);
+	glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * terrain_model));
+	glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, terrain_tex);
+	glUniform1i(terrain_tex_uniform, 3);
+	glUniform1i(state, 99);
+
+	glDrawElementsInstanced(GL_TRIANGLES, ter_shape.drawCount, GL_UNSIGNED_INT, 0, 99 * 99);
 
     glutSwapBuffers();
 }
@@ -800,7 +820,6 @@ void My_Keyboard(unsigned char key, int x, int y)
 		break;
 	}
 	view = lookAt(cam.eye, cam.center, cam.up_vector);
-	printf("Key %c is pressed at (%d, %d)\n", key, x, y);
 }
 
 void My_SpecialKeys(int key, int x, int y)

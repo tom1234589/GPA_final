@@ -17,9 +17,17 @@ out VS_OUT
 } vertexData;
 
 uniform vec4 lightPosition;
+uniform int time;
 
 out vec3 world_coord;
 out vec3 viewSpace_coord;
+
+int n = 3;
+int m = 2;
+float thetas[2] = float[](0.38, 1.42);
+float amplitudes[6] = float[](0.02, 0.02, 0.03, 0.05, 0.02, 0.06);  
+float omegas[3] = float[](3.27,3.31,3.42);
+float waveNums[3] = float[](1.091,1.118,1.1935);
 
 void main()
 {
@@ -32,7 +40,22 @@ void main()
 	// state 0 is city
 	if(state == 99) {
 		vec3 offset = vec3(-495 + (gl_InstanceID / 99)*10, 0.0, -495 + mod(gl_InstanceID, 99)*10);
-		gl_Position = um4p * um4mv * vec4(iv3vertex + offset, 1.0);
+		vec3 newPos = iv3vertex + offset;
+		float x = newPos.x;
+		float y = newPos.y;
+		float z = newPos.z;
+		float t = time / 100.0;
+		for(int i = 0; i < n; i++)  
+		{  
+			for(int j = 0; j < m; j++)  
+			{
+				x -= cos(thetas[j]) * amplitudes[i*3+j] * sin(waveNums[i] * (x * cos(thetas[j]) + z * sin(thetas[j])) - omegas[i] * t);
+				y += amplitudes[i*3+j] * cos(waveNums[i] * ( x * cos(thetas[j]) + z * sin(thetas[j])) - omegas[i] * t) * 0.5;
+				z -= sin(thetas[j]) * amplitudes[i*3+j] * sin(waveNums[i] * (x * cos(thetas[j]) + z * sin(thetas[j])) - omegas[i] * t);
+			}
+		}
+		newPos = vec3(x, y, z);
+		gl_Position = um4p * um4mv * vec4(newPos, 1.0);
 	}
 	else {
 		gl_Position = um4p * um4mv * vec4(iv3vertex, 1.0);
