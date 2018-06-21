@@ -68,9 +68,9 @@ void main()
 		dif = material.diffuse.rgb * texture(diffuse_tex, vertexData.texcoord).rgb * max(dot(L, N), 0.0);
 		spe = material.specular.rgb * texture(diffuse_tex, vertexData.texcoord).rgb * pow(max(dot(N, H), 0.0), 64);
 		shadow = textureProj(shadowmap, vertexData.shadow_coord);
-		if(shadow == 1) sum = amb + shadow * (dif + spe);
-		else sum = amb * 0.5 + shadow * (dif + spe);
-		//sum = amb + dif + spe;
+		//if(shadow == 1) sum = amb + shadow * (dif + spe);
+		//else sum = amb * 0.5 + shadow * (dif + spe);
+		sum = amb + shadow * (dif + spe);
 		if(fogUniform) fragColor = fog(vec4(sum, 1.0));
 		else fragColor = vec4(sum, 1.0);
 		//fragColor = texture(diffuse_tex, vertexData.texcoord);

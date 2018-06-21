@@ -5,6 +5,7 @@
 #define MENU_EXIT 3
 #define FOG 4
 #define NUM_OF_OBJ 1
+#define SHADOW_MAP_SIZE 4096
 
 #ifndef max
 # define max(a,b) (((a)>(b))?(a):(b))
@@ -18,7 +19,6 @@ float pace = 2.0f;
 float deg90 = 3.1415926 / 2;
 float deg180 = 3.1415926;
 float deg270 = 3.1415926 * 1.5;
-const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
 float seaDep = 0; //seaDep must be less than a constant(0 now) or it will be strange
 
 using namespace glm;
@@ -124,8 +124,15 @@ struct _ReflectInfo
 	GLuint lightPos;
 } ReflectInfo;
 
+GLuint depth_prog;
 GLuint depth_fbo;
 GLuint depth_tex;
+GLuint depth_prog_mvp;
+struct
+{
+	int width;
+	int height;
+}viewportSize;
 
 int last_time;
 int nframes;
@@ -474,6 +481,22 @@ void MyLoadPlane()
 	aiReleaseImport(scene);
 }
 
+void MyShadowMap()
+{
+	glGenFramebuffers(1, &depth_fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, depth_fbo);
+
+	glGenTextures(1, &depth_tex);
+	glBindTexture(GL_TEXTURE_2D, depth_tex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_tex, 0);
+}
+
 void My_Init()
 {
 	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -482,6 +505,7 @@ void My_Init()
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+	// Model
 	program = glCreateProgram();
 	GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
 	GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -516,6 +540,7 @@ void My_Init()
 
 	glUseProgram(program);
 
+	// Skybox
 	skybox_prog = glCreateProgram();
 	GLuint vs = glCreateShader(GL_VERTEX_SHADER);
 	GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
@@ -537,6 +562,7 @@ void My_Init()
 
 	glUseProgram(skybox_prog);
 
+	// Reflection
 	reflectProgram = glCreateProgram();
 	GLuint reflectvs = glCreateShader(GL_VERTEX_SHADER);
 	GLuint reflectfs = glCreateShader(GL_FRAGMENT_SHADER);
@@ -566,6 +592,25 @@ void My_Init()
 
 	glUseProgram(reflectProgram);
 
+	// Shadow program
+	depth_prog = glCreateProgram();
+	GLuint depthvs = glCreateShader(GL_VERTEX_SHADER);
+	GLuint depthfs = glCreateShader(GL_FRAGMENT_SHADER);
+	char** depth_vs_src = loadShaderSource("depth_vs.glsl");
+	char** depth_fs_src = loadShaderSource("depth_fs.glsl");
+	glShaderSource(depthvs, 1, depth_vs_src, NULL);
+	glShaderSource(depthfs, 1, depth_fs_src, NULL);
+	freeShaderSource(depth_vs_src);
+	freeShaderSource(depth_fs_src);
+	glCompileShader(depthvs);
+	glCompileShader(depthfs);
+	shaderLog(depthvs);
+	shaderLog(depthfs);
+	glAttachShader(depth_prog, depthvs);
+	glAttachShader(depth_prog, depthfs);
+	glLinkProgram(depth_prog);
+	depth_prog_mvp = glGetUniformLocation(depth_prog, "mvp");
+
 	fName[0] = "Scifi/Scifi downtown city.obj";
 	Dir[0] = "Scifi/";
 
@@ -575,7 +620,7 @@ void My_Init()
 	cam.yaw = 0.0f;
 	cam.pitch = 0.0f;
 	terrain_model = mat4();
-	set_float4(lightPosition, -1000.0f, 1000.0f, 1000.0f, 0.0f);
+	set_float4(lightPosition, -250.0f, 250.0f, 250.0f, 0.0f);
 	set_float4(light_center, 0.0f, 0.0f, 0.0f, 0.0f);
 	set_float4(light_upVec, 0.0f, 1.0f, 0.0f, 0.0f);
 	fogEnabled = true;
@@ -590,21 +635,7 @@ void My_Init()
 
 	MyLoadPlane();
 	MySkybox();
-
-	glGenFramebuffers(1, &depth_fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, depth_fbo);
-	glGenTextures(1, &depth_tex);
-	glBindTexture(GL_TEXTURE_2D, depth_tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_tex, 0);
-	glDrawBuffer(GL_NONE);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	MyShadowMap();
 
 	//last_time = glutGet(GLUT_ELAPSED_TIME);
 	//nframes = 0;
@@ -623,11 +654,40 @@ void My_Display()
 	}*/
 
 	const float shadow_range = 1000.0f;
+	mat4 scale_bias_matrix = translate(mat4(), vec3(0.5f, 0.5f, 0.5f));
+	scale_bias_matrix = scale(scale_bias_matrix, vec3(0.5f, 0.5f, 0.5f));
+
 	mat4 light_proj_matrix = ortho(-shadow_range, shadow_range, -shadow_range, shadow_range, 0.0f, 1000.0f);
-	mat4 light_view_matrix = lookAt(vec3(-40.0f, 40.0f, 40.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f));
+	mat4 light_view_matrix = lookAt(vec3(lightPosition[0], lightPosition[1], lightPosition[2]), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f));
+	mat4 light_vp_matrix = light_proj_matrix * light_view_matrix;
+	
+	mat4 shadow_sbpv_matrix = scale_bias_matrix * light_proj_matrix* light_view_matrix;
+	mat4 shadow_matrix;
 
+	// Shadow Map
+	glUseProgram(depth_prog);
+	glBindFramebuffer(GL_FRAMEBUFFER, depth_fbo);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	glViewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+
+	glEnable(GL_POLYGON_OFFSET_FILL);
+	glPolygonOffset(4.0f, 4.0f);
+	for (int ObjectNum = 0; ObjectNum < NUM_OF_OBJ; ObjectNum++)
+	{
+		glUniformMatrix4fv(depth_prog_mvp, 1, GL_FALSE, value_ptr(light_vp_matrix * object_modeling[ObjectNum]));
+		for (unsigned int i = 0; i < NumOfParts[ObjectNum]; i++)
+		{
+			glBindVertexArray(shape[ObjectNum][i].vao);
+			glDrawElements(GL_TRIANGLES, shape[ObjectNum][i].drawCount, GL_UNSIGNED_INT, 0);
+		}
+	}
+	glDisable(GL_POLYGON_OFFSET_FILL);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glViewport(0, 0, viewportSize.width, viewportSize.height);
 
+	// Draw skybox
 	glUseProgram(skybox_prog);
 
 	glBindTexture(GL_TEXTURE_CUBE_MAP, skybox_tex);
@@ -639,52 +699,57 @@ void My_Display()
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glEnable(GL_DEPTH_TEST);
 
+	// Draw Reflection
 	glUseProgram(reflectProgram);
-	glUniformMatrix4fv(ReflectInfo.um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[0]));
-	glUniformMatrix4fv(ReflectInfo.um4p, 1, GL_FALSE, value_ptr(projection));
+
+	glUniform4fv(ReflectInfo.lightPos, 1, lightPosition);
+	glUniform1f(ReflectInfo.seaDep, seaDep);
+
 	glActiveTexture(GL_TEXTURE0);
 	glUniform1i(ReflectInfo.shadowmap, 0);
 	glBindTexture(GL_TEXTURE_2D, depth_tex);
+
 	glActiveTexture(GL_TEXTURE1);
 	glUniform1i(ReflectInfo.tex, 1);
-	glUniform1f(ReflectInfo.seaDep, seaDep);
-
-	mat4 scale_bias_matrix = translate(mat4(), vec3(0.5f, 0.5f, 0.5f));
-	scale_bias_matrix = scale(scale_bias_matrix, vec3(0.5f, 0.5f, 0.5f));
-	mat4 shadow_sbpv_matrix = scale_bias_matrix * light_proj_matrix* light_view_matrix;
-	mat4 shadow_matrix = shadow_sbpv_matrix * object_modeling[0];
-	glUniformMatrix4fv(ReflectInfo.um4shadow, 1, GL_FALSE, value_ptr(shadow_matrix));
-	glUniform4fv(ReflectInfo.lightPos, 1, lightPosition);
-
-	for (unsigned int i = 0; i < NumOfParts[0]; i++)
+	
+	for (int ObjectNum = 0; ObjectNum < NUM_OF_OBJ; ObjectNum++)
 	{
-		glBindVertexArray(shape[0][i].vao);
-		int materialID = shape[0][i].materialId;
+		shadow_matrix = shadow_sbpv_matrix * object_modeling[ObjectNum];
+		glUniformMatrix4fv(ReflectInfo.um4shadow, 1, GL_FALSE, value_ptr(shadow_matrix));
+		glUniformMatrix4fv(ReflectInfo.um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum]));
+		glUniformMatrix4fv(ReflectInfo.um4p, 1, GL_FALSE, value_ptr(projection));
+		for (unsigned int i = 0; i < NumOfParts[ObjectNum]; i++)
+		{
+			glBindVertexArray(shape[ObjectNum][i].vao);
+			int materialID = shape[ObjectNum][i].materialId;
 
-		glUniform4fv(ReflectInfo.Ka, 1, myMaterial[0][materialID].ka);
-		glUniform4fv(ReflectInfo.Kd, 1, myMaterial[0][materialID].kd);
-		glUniform4fv(ReflectInfo.Ks, 1, myMaterial[0][materialID].ks);
+			glUniform4fv(ReflectInfo.Ka, 1, myMaterial[ObjectNum][materialID].ka);
+			glUniform4fv(ReflectInfo.Kd, 1, myMaterial[ObjectNum][materialID].kd);
+			glUniform4fv(ReflectInfo.Ks, 1, myMaterial[ObjectNum][materialID].ks);
 
-		glBindTexture(GL_TEXTURE_2D, myMaterial[0][materialID].diffuse_tex);
+			glBindTexture(GL_TEXTURE_2D, myMaterial[0][materialID].diffuse_tex);
 
-		glDrawElements(GL_TRIANGLES, shape[0][i].drawCount, GL_UNSIGNED_INT, 0);
+			glDrawElements(GL_TRIANGLES, shape[ObjectNum][i].drawCount, GL_UNSIGNED_INT, 0);
+		}
 	}
 
+	// Draw model
 	glUseProgram(program);
+
+	glUniform1i(fogUniform, fogEnabled ? 1 : 0);
+	glUniform1i(time_uniform, timer_cnt);
+	glUniform4fv(iLoclightPosition, 1, lightPosition);
 
 	glActiveTexture(GL_TEXTURE4);
 	glUniform1i(shadowmap, 4);
 	glBindTexture(GL_TEXTURE_2D, depth_tex);
-	glUniformMatrix4fv(um4shadow, 1, GL_FALSE, value_ptr(shadow_matrix));
-	glUniform4fv(iLoclightPosition, 1, lightPosition);
-	glUniform1i(fogUniform, fogEnabled ? 1 : 0);
-	glUniform1i(time_uniform, timer_cnt);
-
+	
 	for(int ObjectNum = 0; ObjectNum < NUM_OF_OBJ; ObjectNum++)
 	{
+		shadow_matrix = shadow_sbpv_matrix * object_modeling[ObjectNum];
+		glUniformMatrix4fv(um4shadow, 1, GL_FALSE, value_ptr(shadow_matrix));
 		glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum]));
 		glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
-		//glActiveTexture(GL_TEXTURE0);
 		glUniform1i(state, 0);
 		for (unsigned int i = 0; i < NumOfParts[ObjectNum]; i++)
 		{
@@ -709,6 +774,7 @@ void My_Display()
 		}
 	}
 
+	// Draw water
 	glBindVertexArray(ter_shape.vao);
 	glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * terrain_model));
 	glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
@@ -724,10 +790,12 @@ void My_Display()
 
 void My_Reshape(int width, int height)
 {
+	viewportSize.width = width;
+	viewportSize.height = height;
 	glViewport(0, 0, width, height);
 
 	float viewportAspect = (float)width / (float)height;
-	projection = perspective(radians(60.0f), viewportAspect, 0.1f, 4000.0f);
+	projection = perspective(radians(60.0f), viewportAspect, 0.1f, 1000.0f);
 	view = lookAt(cam.eye, cam.center, cam.up_vector);
 }
 

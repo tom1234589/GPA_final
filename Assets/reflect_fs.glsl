@@ -39,12 +39,7 @@ void main()
 	float shadow = textureProj(shadowmap, vertexData.shadow_coord);
 	
 	vec3 lighting;
-	
-	if(shadow == 1){
-		lighting = (ambient + (textureProj(shadowmap, vertexData.shadow_coord)) * (diffuse + specular));
-	}
-	else{
-		lighting = (ambient * 0.5 + (textureProj(shadowmap, vertexData.shadow_coord)) * (diffuse + specular));
-	}
+	lighting = ambient + shadow * (diffuse + specular);
+
 	fragColor = vec4(lighting, 1.0);
 }

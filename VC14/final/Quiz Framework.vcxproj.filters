@@ -10,5 +10,7 @@
     <None Include="..\..\Assets\skybox_vs.vs.glsl" />
     <None Include="..\..\Assets\reflect_fs.glsl" />
     <None Include="..\..\Assets\reflect_vs.glsl" />
+    <None Include="..\..\Assets\depth_fs.glsl" />
+    <None Include="..\..\Assets\depth_vs.glsl" />
   </ItemGroup>
 </Project>
