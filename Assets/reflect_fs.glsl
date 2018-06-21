@@ -19,7 +19,6 @@ uniform sampler2DShadow shadowmap;
 uniform vec4 Ka;
 uniform vec4 Kd;
 uniform vec4 Ks;
-float alpha = 1.0;
 
 void main()
 {
@@ -42,11 +41,10 @@ void main()
 	vec3 lighting;
 	
 	if(shadow == 1){
-		lighting = (ambient + (textureProj(shadowmap, vertexData.shadow_coord)) * vec3(diffuse + specular));
+		lighting = (ambient + (textureProj(shadowmap, vertexData.shadow_coord)) * (diffuse + specular));
 	}
 	else{
-		lighting = (ambient * 0.5 + (textureProj(shadowmap, vertexData.shadow_coord)) * vec3(diffuse + specular));
+		lighting = (ambient * 0.5 + (textureProj(shadowmap, vertexData.shadow_coord)) * (diffuse + specular));
 	}
-	fragColor = vec4(lighting, alpha);
-	
+	fragColor = vec4(lighting, 1.0);
 }

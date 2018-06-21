@@ -6,6 +6,7 @@ layout(location = 2) in vec3 iv3normal;
 
 uniform mat4 um4mv;
 uniform mat4 um4p;
+uniform mat4 um4shadow;
 uniform int state;
 
 out VS_OUT
@@ -14,6 +15,7 @@ out VS_OUT
     vec3 L; // eye space light vector
     vec3 V; // vector from vertex to eye
     vec2 texcoord;
+	vec4 shadow_coord;
 } vertexData;
 
 uniform vec4 lightPosition;
@@ -64,4 +66,5 @@ void main()
 	vertexData.texcoord = iv2tex_coord;
 	vertexData.L = lightPosition.xyz - P.xyz;
 	vertexData.V = -P.xyz;
+	vertexData.shadow_coord = um4shadow * vec4(iv3vertex, 1.0);
 }

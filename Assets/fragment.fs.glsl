@@ -4,6 +4,7 @@ uniform sampler2D ambient_tex;
 uniform sampler2D diffuse_tex;
 uniform sampler2D specular_tex;
 uniform sampler2D terrain_tex_uniform;
+uniform sampler2DShadow shadowmap;
 
 out vec4 fragColor;
 
@@ -17,6 +18,7 @@ in VS_OUT
     vec3 L; // eye space light vector
     vec3 V; // eye space halfway vector
     vec2 texcoord;
+	vec4 shadow_coord;
 } vertexData;
 
 uniform vec4 lightPosition;
@@ -38,7 +40,7 @@ const vec4 fogColor = vec4(0.7, 0.8, 0.9, 0.0);
 
 vec4 fog(vec4 c)
 {
-	float z = length(viewSpace_coord) / 100.0f;
+	float z = length(viewSpace_coord) / 80.0f;
 	float fogFactor = 0;
 	float fogDensity = 0.2;
 	fogFactor = 1.0 / exp(z * fogDensity * z * fogDensity);
@@ -53,6 +55,7 @@ void main()
 	vec3 V = normalize(vertexData.V);
 	vec3 H = normalize(L + V);
 	vec3 amb, dif, spe, sum;
+	float shadow;
 
 	// state 99 is ground
 	// state 0 is city
@@ -64,7 +67,10 @@ void main()
 		amb = material.ambient.rgb * texture(diffuse_tex, vertexData.texcoord).rgb;
 		dif = material.diffuse.rgb * texture(diffuse_tex, vertexData.texcoord).rgb * max(dot(L, N), 0.0);
 		spe = material.specular.rgb * texture(diffuse_tex, vertexData.texcoord).rgb * pow(max(dot(N, H), 0.0), 64);
-		sum = amb + dif + spe;
+		shadow = textureProj(shadowmap, vertexData.shadow_coord);
+		if(shadow == 1) sum = amb + shadow * (dif + spe);
+		else sum = amb * 0.5 + shadow * (dif + spe);
+		//sum = amb + dif + spe;
 		if(fogUniform) fragColor = fog(vec4(sum, 1.0));
 		else fragColor = vec4(sum, 1.0);
 		//fragColor = texture(diffuse_tex, vertexData.texcoord);

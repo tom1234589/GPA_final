@@ -31,6 +31,8 @@ mat4 object_modeling[NUM_OF_OBJ];
 
 GLint um4p;
 GLint um4mv;
+GLint um4shadow;
+GLint shadowmap;
 GLint state;
 GLuint time_uniform;
 
@@ -509,6 +511,8 @@ void My_Init()
 	iLoclightPosition = glGetUniformLocation(program, "lightPosition");
 	fogUniform = glGetUniformLocation(program, "fogUniform");
 	time_uniform = glGetUniformLocation(program, "time");
+	um4shadow = glGetUniformLocation(program, "um4shadow");
+	shadowmap = glGetUniformLocation(program, "shadowmap");
 
 	glUseProgram(program);
 
@@ -618,9 +622,9 @@ void My_Display()
 		last_time += 1000;
 	}*/
 
-	const float shadow_range = 500.0f;
-	mat4 light_proj_matrix = ortho(-shadow_range, shadow_range, -shadow_range, shadow_range, 0.0f, 3000.0f);
-	mat4 light_view_matrix = lookAt(vec3(20.0f, 20.0f, 20.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f));
+	const float shadow_range = 1000.0f;
+	mat4 light_proj_matrix = ortho(-shadow_range, shadow_range, -shadow_range, shadow_range, 0.0f, 1000.0f);
+	mat4 light_view_matrix = lookAt(vec3(-40.0f, 40.0f, 40.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f));
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -648,7 +652,7 @@ void My_Display()
 	mat4 scale_bias_matrix = translate(mat4(), vec3(0.5f, 0.5f, 0.5f));
 	scale_bias_matrix = scale(scale_bias_matrix, vec3(0.5f, 0.5f, 0.5f));
 	mat4 shadow_sbpv_matrix = scale_bias_matrix * light_proj_matrix* light_view_matrix;
-	mat4 shadow_matrix = shadow_sbpv_matrix * model;
+	mat4 shadow_matrix = shadow_sbpv_matrix * object_modeling[0];
 	glUniformMatrix4fv(ReflectInfo.um4shadow, 1, GL_FALSE, value_ptr(shadow_matrix));
 	glUniform4fv(ReflectInfo.lightPos, 1, lightPosition);
 
@@ -668,6 +672,10 @@ void My_Display()
 
 	glUseProgram(program);
 
+	glActiveTexture(GL_TEXTURE4);
+	glUniform1i(shadowmap, 4);
+	glBindTexture(GL_TEXTURE_2D, depth_tex);
+	glUniformMatrix4fv(um4shadow, 1, GL_FALSE, value_ptr(shadow_matrix));
 	glUniform4fv(iLoclightPosition, 1, lightPosition);
 	glUniform1i(fogUniform, fogEnabled ? 1 : 0);
 	glUniform1i(time_uniform, timer_cnt);
@@ -816,6 +824,8 @@ void My_Keyboard(unsigned char key, int x, int y)
 		pace -= 2.0f;
 		if (pace < 2.0f) pace = 2.0f;
 		break;
+	case 'k':
+		printf("camera position: %f, %f, %f\n", cam.eye.x, cam.eye.y, cam.eye.z);
 	default:
 		break;
 	}
