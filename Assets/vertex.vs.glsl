@@ -15,6 +15,7 @@ out VS_OUT
     vec3 L; // eye space light vector
     vec3 V; // vector from vertex to eye
 	vec3 view;
+	vec3 normal;
     vec2 texcoord;
 	vec4 shadow_coord;
 } vertexData;
@@ -39,6 +40,7 @@ void main()
 	vec4 P = um4mv * vec4(iv3vertex, 1.0);
 	viewSpace_coord = P.xyz;
 	vertexData.N = mat3(transpose(inverse(um4mv))) * iv3normal;
+	vertexData.shadow_coord = um4shadow * vec4(iv3vertex, 1.0);
 
 	// state 99 is ground
 	// state 0 is city
@@ -46,6 +48,8 @@ void main()
 		vec3 offset = vec3(-495 + (gl_InstanceID / 99)*10, 0.0, -495 + mod(gl_InstanceID, 99)*10);
 		vec3 newPos = iv3vertex + offset;
 		world_coord = newPos;
+		vertexData.normal = iv3normal;
+		vertexData.shadow_coord = um4shadow * vec4(newPos, 1.0);
 		float x = newPos.x;
 		float y = newPos.y;
 		float z = newPos.z;
@@ -69,5 +73,4 @@ void main()
 	vertexData.texcoord = iv2tex_coord;
 	vertexData.L = lightPosition.xyz - P.xyz;
 	vertexData.V = -P.xyz;
-	vertexData.shadow_coord = um4shadow * vec4(iv3vertex, 1.0);
 }
