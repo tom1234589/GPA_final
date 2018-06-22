@@ -31,9 +31,12 @@ mat4 object_modeling[NUM_OF_OBJ];
 
 GLint um4p;
 GLint um4mv;
+GLint um4vp;
 GLint um4shadow;
 GLint shadowmap;
+GLint cubemap;
 GLint state;
+GLuint eyePosition;
 GLuint time_uniform;
 
 GLuint program;
@@ -537,6 +540,8 @@ void My_Init()
 	time_uniform = glGetUniformLocation(program, "time");
 	um4shadow = glGetUniformLocation(program, "um4shadow");
 	shadowmap = glGetUniformLocation(program, "shadowmap");
+	cubemap = glGetUniformLocation(program, "tex_cubemap");
+	eyePosition = glGetUniformLocation(program, "eyePosition");
 
 	glUseProgram(program);
 
@@ -739,6 +744,8 @@ void My_Display()
 	glUniform1i(fogUniform, fogEnabled ? 1 : 0);
 	glUniform1i(time_uniform, timer_cnt);
 	glUniform4fv(iLoclightPosition, 1, lightPosition);
+	glUniform3fv(eyePosition, 1, value_ptr(cam.eye));
+	glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
 
 	glActiveTexture(GL_TEXTURE4);
 	glUniform1i(shadowmap, 4);
@@ -749,7 +756,6 @@ void My_Display()
 		shadow_matrix = shadow_sbpv_matrix * object_modeling[ObjectNum];
 		glUniformMatrix4fv(um4shadow, 1, GL_FALSE, value_ptr(shadow_matrix));
 		glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * object_modeling[ObjectNum]));
-		glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
 		glUniform1i(state, 0);
 		for (unsigned int i = 0; i < NumOfParts[ObjectNum]; i++)
 		{
@@ -778,6 +784,9 @@ void My_Display()
 	glBindVertexArray(ter_shape.vao);
 	glUniformMatrix4fv(um4mv, 1, GL_FALSE, value_ptr(view * terrain_model));
 	glUniformMatrix4fv(um4p, 1, GL_FALSE, value_ptr(projection));
+	glActiveTexture(GL_TEXTURE5);
+	glUniform1i(cubemap, 5);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, skybox_tex);
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, terrain_tex);
 	glUniform1i(terrain_tex_uniform, 3);

@@ -14,11 +14,13 @@ out VS_OUT
     vec3 N; // eye space normal
     vec3 L; // eye space light vector
     vec3 V; // vector from vertex to eye
+	vec3 view;
     vec2 texcoord;
 	vec4 shadow_coord;
 } vertexData;
 
 uniform vec4 lightPosition;
+uniform vec3 eyePosition;
 uniform int time;
 
 out vec3 world_coord;
@@ -43,6 +45,7 @@ void main()
 	if(state == 99) {
 		vec3 offset = vec3(-495 + (gl_InstanceID / 99)*10, 0.0, -495 + mod(gl_InstanceID, 99)*10);
 		vec3 newPos = iv3vertex + offset;
+		world_coord = newPos;
 		float x = newPos.x;
 		float y = newPos.y;
 		float z = newPos.z;
